@@ -38,7 +38,7 @@ export default async function BusinessPage({
     .limit(10)
 
   // Fetch profile data for reviewers
-  const reviewerIds = [...new Set((reviews || []).map(r => r.user_id))]
+  const reviewerIds = [...new Set((reviews || []).map(r => r.user_id).filter((id): id is string => id !== null))]
   const { data: reviewerProfiles } = await supabase
     .from('profiles')
     .select('id, full_name, avatar_url')
@@ -123,7 +123,7 @@ export default async function BusinessPage({
               ) : (
                 <div className="mt-4 space-y-4">
                   {reviews.map((review) => {
-                    const profile = profileMap.get(review.user_id)
+                    const profile = profileMap.get(review.user_id ?? '')
                     return (
                     <div key={review.id} className="border-b border-white/5 pb-4 last:border-0 last:pb-0">
                       <div className="flex items-center gap-2">
