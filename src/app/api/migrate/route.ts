@@ -24,10 +24,10 @@ async function applyViaPg() {
   try {
     const { Client } = require('pg')
     const client = new Client({
-      host: 'db.ekqnuqbfrwfgkhqmvvjc.supabase.co',
+      host: 'aws-0-ap-northeast-2.pooler.supabase.com',
       port: 5432,
       database: 'postgres',
-      user: 'postgres',
+      user: 'postgres.',
       password: process.env.SUPABASE_SERVICE_ROLE_KEY,
       ssl: { rejectUnauthorized: false },
       connectionTimeoutMillis: 10000,
