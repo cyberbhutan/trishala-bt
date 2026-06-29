@@ -1,8 +1,9 @@
 import { createServerSupabase } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { approveBusiness, rejectBusiness } from '@/lib/actions/businesses'
+import { approveClaim, rejectClaim } from '@/lib/actions/claims'
 import { formatDate } from '@/lib/utils'
-import { Check, X, Store, MapPin, Wrench, Briefcase } from 'lucide-react'
+import { Check, X, Store, MapPin, Wrench, Briefcase, Shield, ShieldCheck, FileText } from 'lucide-react'
 import Link from 'next/link'
 
 async function PendingSection({ data, label, color, icon: Icon, type }: any) {
@@ -61,7 +62,7 @@ export default async function AdminPage() {
   const { data: profile } = await supabase.from('profiles').select('is_admin').eq('id', user.id).single()
   if (!profile?.is_admin) redirect('/')
 
-  const [pendingBiz, pendingClassifieds, pendingServices, approvedBiz, allClassifieds, allServices, allJobs, allUsers] = await Promise.all([
+  const [pendingBiz, pendingClassifieds, pendingServices, approvedBiz, allClassifieds, allServices, allJobs, allUsers, pendingClaimsData] = await Promise.all([
     supabase.from('businesses').select('*').eq('status', 'pending').order('created_at', { ascending: false }),
     supabase.from('classifieds').select('*, categories:classified_categories(name)').eq('status', 'active').order('created_at', { ascending: false }).limit(10),
     supabase.from('services').select('*, categories:service_categories(name)').eq('status', 'pending').order('created_at', { ascending: false }),
@@ -70,6 +71,15 @@ export default async function AdminPage() {
     supabase.from('services').select('id, title, price, status, views_count, avg_rating, city, created_at').order('created_at', { ascending: false }).limit(10),
     supabase.from('jobs').select('id, title, company_name, status, views_count, application_count, city, created_at').order('created_at', { ascending: false }).limit(10),
     supabase.from('profiles').select('*').limit(10),
+    (supabase as any)
+      .from('claim_requests')
+      .select(`
+        *,
+        business:businesses(name, slug),
+        profile:profiles!user_id(full_name, avatar_url)
+      `)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false }),
   ])
 
   return (
@@ -99,6 +109,68 @@ export default async function AdminPage() {
         {/* Pending sections */}
         <PendingSection data={pendingBiz.data} label="Businesses" color="#FF8A00" icon={Store} type="business" />
         <PendingSection data={pendingServices.data} label="Services" color="#34c759" icon={Wrench} type="service" />
+
+        {/* Claim Requests */}
+        <section className="mt-8">
+          <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-white">
+            <Shield className="h-5 w-5" style={{ color: '#FF8A00' }} />
+            Claim Requests
+            {pendingClaimsData.data && pendingClaimsData.data.length > 0 && (
+              <span className="text-sm font-normal text-white/50">({pendingClaimsData.data.length})</span>
+            )}
+          </h2>
+          {(!pendingClaimsData.data || pendingClaimsData.data.length === 0) ? (
+            <p className="text-sm text-white/40">No pending claim requests.</p>
+          ) : (
+            <div className="space-y-3">
+              {pendingClaimsData.data.map((claim: any) => (
+                <div key={claim.id} className="rounded-2xl border border-white/5 bg-white/[0.03] p-5">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-lg font-semibold text-white truncate">
+                          {claim.business?.name || 'Unknown Business'}
+                        </h3>
+                        <FileText className="h-4 w-4 text-[#FF8A00] shrink-0" />
+                      </div>
+                      <p className="mt-1 text-sm text-white/50 truncate">
+                        Claimed by <span className="text-white/70">{claim.profile?.full_name || claim.user_id}</span>
+                      </p>
+                      {claim.message && (
+                        <p className="mt-2 text-sm text-white/40 italic line-clamp-2">
+                          &ldquo;{claim.message}&rdquo;
+                        </p>
+                      )}
+                      <div className="mt-2 flex items-center gap-3 text-xs text-white/30">
+                        <span>Submitted {formatDate(claim.created_at)}</span>
+                        {claim.business?.slug && (
+                          <Link
+                            href={`/business/${claim.business.slug}`}
+                            className="text-[#FF8A00] hover:underline"
+                          >
+                            View Business
+                          </Link>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0 ml-4">
+                      <form action={approveClaim.bind(null, claim.id)}>
+                        <button className="rounded-lg border border-green-500/20 p-2 text-green-400 hover:bg-green-500/10 transition-all">
+                          <Check className="h-4 w-4" />
+                        </button>
+                      </form>
+                      <form action={rejectClaim.bind(null, claim.id)}>
+                        <button className="rounded-lg border border-red-500/20 p-2 text-red-400 hover:bg-red-500/10 transition-all">
+                          <X className="h-4 w-4" />
+                        </button>
+                      </form>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
 
         {/* Recent All */}
         <section className="mt-12">

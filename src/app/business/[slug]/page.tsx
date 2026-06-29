@@ -1,12 +1,15 @@
 import { notFound } from 'next/navigation'
 import { createServerSupabase } from '@/lib/supabase/server'
-import { Star, MapPin, Phone, Mail, Globe, Clock, MessageCircle, ExternalLink, Store } from 'lucide-react'
+import { Star, MapPin, Phone, Mail, Globe, Clock, MessageCircle, ExternalLink, Store, Shield, ShieldCheck } from 'lucide-react'
 import Link from 'next/link'
 import { formatDate, getWhatsAppLink } from '@/lib/utils'
 import { recordView } from '@/lib/actions/analytics'
 import { submitReview, submitInquiry } from '@/lib/actions/reviews'
+import { submitClaim } from '@/lib/actions/claims'
 import ShareButtons from '@/components/ui/ShareButtons'
 import { ListingCard } from '@/components/ui/ListingCard'
+import GalleryClient from '@/components/ui/GalleryClient'
+import ReportButton from '@/components/ui/ReportButton'
 
 export default async function BusinessPage({
   params,
@@ -30,6 +33,19 @@ export default async function BusinessPage({
   // Record view (fire and forget)
   recordView(business.id)
 
+  // Get current user and check claim status
+  const { data: { user } } = await supabase.auth.getUser()
+  let existingClaim = null
+  if (user && !business.owner_id) {
+    const { data: claim } = await (supabase as any)
+      .from('claim_requests')
+      .select('status')
+      .eq('business_id', business.id)
+      .eq('user_id', user.id)
+      .maybeSingle()
+    existingClaim = claim
+  }
+
   // Get reviews
   const { data: reviews } = await supabase
     .from('reviews')
@@ -38,6 +54,11 @@ export default async function BusinessPage({
     .eq('is_approved', true)
     .order('created_at', { ascending: false })
     .limit(10)
+
+  // Rating breakdown
+  const ratingBreakdown = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 }
+  reviews?.forEach(r => { if (r.rating >= 1 && r.rating <= 5) ratingBreakdown[r.rating as keyof typeof ratingBreakdown]++ })
+  const totalRatings = reviews?.length || 0
 
   const reviewerIds = [...new Set((reviews || []).map(r => r.user_id).filter((id): id is string => id !== null))]
   const { data: reviewerProfiles } = await supabase
@@ -63,17 +84,19 @@ export default async function BusinessPage({
   return (
     <div className="min-h-screen bg-[#0F172A]">
       {/* Cover Image */}
-      <div className="relative h-48 bg-gradient-to-r from-[#003B82]/30 to-[#0F172A] sm:h-64 lg:h-80">
-        {business.cover_image && (
-          <img src={business.cover_image} alt={business.name} className="h-full w-full object-cover" />
-        )}
-        {images.length > 1 && (
-          <div className="absolute bottom-4 right-4 rounded-full bg-black/50 px-3 py-1 text-xs text-white/70 backdrop-blur-sm">
-            {images.length} photo{images.length > 1 ? 's' : ''}
-          </div>
-        )}
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0F172A] via-[#0F172A]/60 to-transparent" />
-      </div>
+      <GalleryClient images={images}>
+        <div className="relative h-48 bg-gradient-to-r from-[#003B82]/30 to-[#0F172A] sm:h-64 lg:h-80">
+          {business.cover_image && (
+            <img src={business.cover_image} alt={business.name} className="h-full w-full object-cover" />
+          )}
+          {images.length > 1 && (
+            <div className="absolute bottom-4 right-4 rounded-full bg-black/50 px-3 py-1 text-xs text-white/70 backdrop-blur-sm">
+              {images.length} photo{images.length > 1 ? 's' : ''}
+            </div>
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-[#0F172A] via-[#0F172A]/60 to-transparent" />
+        </div>
+      </GalleryClient>
 
       <div className="relative mx-auto max-w-7xl px-4 pb-20 sm:px-6 lg:px-8">
         {/* Business Header */}
@@ -115,6 +138,8 @@ export default async function BusinessPage({
             </div>
             <div className="flex items-center gap-3">
               <ShareButtons title={business.name} />
+              <div className="h-4 w-px bg-white/10" />
+              <ReportButton itemType="business" itemId={business.id} />
             </div>
           </div>
         </div>
@@ -175,12 +200,47 @@ export default async function BusinessPage({
 
             {/* Reviews */}
             <section className="rounded-2xl border border-white/5 bg-white/[0.03] p-6">
-              <h2 className="text-lg font-semibold text-white">
-                Reviews
-                {reviews && reviews.length > 0 && (
-                  <span className="ml-2 text-sm font-normal text-white/40">({reviews.length})</span>
+              <div className="flex items-start justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-white">
+                    Reviews
+                    {reviews && reviews.length > 0 && (
+                      <span className="ml-2 text-sm font-normal text-white/40">({reviews.length})</span>
+                    )}
+                  </h2>
+                </div>
+                {/* Rating breakdown summary */}
+                {totalRatings > 0 && (
+                  <div className="flex items-center gap-1">
+                    <Star className="h-4 w-4 fill-[#FF8A00] text-[#FF8A00]" />
+                    <span className="text-lg font-bold text-white">{Number(business.avg_rating).toFixed(1)}</span>
+                    <span className="text-xs text-white/40">({business.review_count})</span>
+                  </div>
                 )}
-              </h2>
+              </div>
+
+              {/* Rating Breakdown Bars */}
+              {totalRatings > 0 && (
+                <div className="mt-4 mb-6 space-y-1.5">
+                  {[5, 4, 3, 2, 1].map((star) => {
+                    const count = ratingBreakdown[star as keyof typeof ratingBreakdown]
+                    const pct = totalRatings > 0 ? (count / totalRatings) * 100 : 0
+                    return (
+                      <div key={star} className="flex items-center gap-2 text-xs">
+                        <span className="w-6 text-right text-white/50">{star}</span>
+                        <Star className="h-3 w-3 fill-[#FF8A00] text-[#FF8A00]" />
+                        <div className="flex-1 h-1.5 rounded-full bg-white/5 overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-[#FF8A00] transition-all"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                        <span className="w-8 text-right text-white/30">{count}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
               {(!reviews || reviews.length === 0) ? (
                 <p className="mt-3 text-sm text-white/40">No reviews yet. Be the first to review!</p>
               ) : (
@@ -297,6 +357,46 @@ export default async function BusinessPage({
                 >
                   <MapPin className="h-3 w-3" /> View on Google Maps
                 </a>
+              </div>
+            )}
+
+            {/* Claim this Business */}
+            {!business.owner_id && (
+              <div className="rounded-2xl border border-white/5 bg-white/[0.03] p-6">
+                <h3 className="text-sm font-semibold text-white flex items-center gap-1.5">
+                  {existingClaim?.status === 'pending' ? (
+                    <><ShieldCheck className="h-4 w-4 text-emerald-400" /> Claim Pending</>
+                  ) : (
+                    <><Shield className="h-4 w-4 text-[#FF8A00]" /> Claim this Business</>
+                  )}
+                </h3>
+                {existingClaim?.status === 'pending' ? (
+                  <p className="mt-3 text-sm text-white/50">
+                    Your claim request is pending review. We&apos;ll notify you once it&apos;s approved.
+                  </p>
+                ) : existingClaim?.status === 'rejected' || !existingClaim ? (
+                  user ? (
+                    <form action={submitClaim} className="mt-4 space-y-3">
+                      <input type="hidden" name="business_id" value={business.id} />
+                      <textarea
+                        name="message"
+                        rows={2}
+                        placeholder="Why are you the owner? (optional)"
+                        className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white placeholder-white/30 focus:border-[#FF8A00]/50 focus:outline-none"
+                      />
+                      <button
+                        type="submit"
+                        className="w-full rounded-xl bg-[#FF8A00] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#E67A00] transition-all active:scale-[0.97]"
+                      >
+                        Submit Claim
+                      </button>
+                    </form>
+                  ) : (
+                    <p className="mt-3 text-sm text-white/50">
+                      <Link href="/auth/login" className="text-[#FF8A00] hover:underline">Sign in</Link> to claim this business.
+                    </p>
+                  )
+                ) : null}
               </div>
             )}
 

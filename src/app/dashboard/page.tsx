@@ -1,14 +1,15 @@
 import { createServerSupabase } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { Store, MapPin, Wrench, Briefcase, Plus, Eye, Star, Settings, Heart, TrendingUp, ArrowUpRight, BarChart3 } from 'lucide-react'
+import { Store, MapPin, Wrench, Briefcase, Plus, Eye, Star, Settings, Heart, TrendingUp, ArrowUpRight, BarChart3, Mail, ArrowRight } from 'lucide-react'
+import { getMyInquiries, getUnreadCount } from '@/lib/actions/inquiries'
 
 export default async function DashboardPage() {
   const supabase = await createServerSupabase()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth/login')
 
-  const [businesses, classifieds, services, jobs, profile, favoritesCount] = await Promise.all([
+  const [businesses, classifieds, services, jobs, profile, favoritesCount, inquiries, unreadInquiries] = await Promise.all([
     supabase.from('businesses').select('id, name, slug, status, views_count, avg_rating, review_count').eq('owner_id', user.id).order('created_at', { ascending: false }),
     supabase.from('classifieds').select('id, title, slug, price, status, views_count').eq('user_id', user.id).order('created_at', { ascending: false }),
     supabase.from('services').select('id, title, slug, status, views_count, avg_rating').eq('provider_id', user.id).order('created_at', { ascending: false }),
@@ -16,6 +17,8 @@ export default async function DashboardPage() {
     supabase.from('profiles').select('*').eq('id', user.id).single(),
     // @ts-expect-error - favorites table not in types yet
     supabase.from('favorites').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
+    getMyInquiries(user.id),
+    getUnreadCount(user.id),
   ])
 
   const sections = [
@@ -162,6 +165,69 @@ export default async function DashboardPage() {
               )}
             </div>
           ))}
+        </div>
+
+        {/* Inquiries Section */}
+        <div className="mt-10">
+          <div className="mb-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Mail className="h-5 w-5 text-[#FF8A00]" />
+              <h2 className="text-lg font-semibold text-white">Inquiries</h2>
+              {unreadInquiries > 0 && (
+                <span className="flex h-5 items-center rounded-full bg-[#FF8A00]/20 px-2 text-[10px] font-medium text-[#FF8A00]">
+                  {unreadInquiries} new
+                </span>
+              )}
+            </div>
+            <Link
+              href="/dashboard/inquiries"
+              className="flex items-center gap-1.5 rounded-xl border border-white/5 bg-white/[0.03] px-3.5 py-2 text-xs font-medium text-white/50 transition-all hover:border-white/10 hover:text-white"
+            >
+              View All <ArrowRight className="h-3 w-3" />
+            </Link>
+          </div>
+          {(!inquiries || inquiries.length === 0) ? (
+            <div className="rounded-2xl border border-dashed border-white/10 p-10 text-center">
+              <Mail className="mx-auto h-8 w-8 text-white/20" />
+              <p className="mt-3 text-sm text-white/40">No inquiries yet</p>
+              <p className="text-xs text-white/30 mt-1">Inquiries from customers will appear here</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {inquiries.slice(0, 5).map((inquiry: any) => (
+                <Link
+                  key={inquiry.id}
+                  href={`/business/${inquiry.business.slug}`}
+                  className="flex items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-4 py-3 transition-all hover:border-white/10"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium text-white truncate">{inquiry.name}</p>
+                      {!inquiry.is_read && (
+                        <span className="flex h-2 w-2 rounded-full bg-[#FF8A00]" />
+                      )}
+                    </div>
+                    <div className="mt-1 flex items-center gap-3 text-xs text-white/40">
+                      <span>{inquiry.email}</span>
+                      <span className="text-white/20">·</span>
+                      <span className="text-[#FF8A00]/60">{inquiry.business.name}</span>
+                      <span className="text-white/20">·</span>
+                      <span>{inquiry.message?.substring(0, 60)}{inquiry.message?.length > 60 ? '...' : ''}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0 ml-4">
+                    <span className="text-[11px] text-white/30">{new Date(inquiry.created_at).toLocaleDateString()}</span>
+                    <ArrowUpRight className="h-4 w-4 text-white/20" />
+                  </div>
+                </Link>
+              ))}
+              {inquiries.length > 5 && (
+                <Link href="/dashboard/inquiries" className="block text-center text-xs text-white/40 hover:text-white/60 py-2">
+                  View all {inquiries.length} →
+                </Link>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Admin link */}

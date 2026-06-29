@@ -1,8 +1,14 @@
 import { createServerSupabase } from '@/lib/supabase/server'
 import Link from 'next/link'
-import { Search, ChevronLeft, ChevronRight, MapPin } from 'lucide-react'
+import dynamic from 'next/dynamic'
+import { Search, ChevronLeft, ChevronRight, MapPin, Grid3X3, Map } from 'lucide-react'
 import { ListingCard } from '@/components/ui/ListingCard'
 import type { Business } from '@/lib/types'
+
+const ListingMap = dynamic(
+  () => import('@/components/ui/ListingMap').then((m) => m.ListingMap),
+  { ssr: false },
+)
 
 const SORT_OPTIONS = [
   { value: 'newest', label: 'Newest' },
@@ -33,6 +39,8 @@ function buildUrl(
     if (value === undefined || value === '') {
       params.delete(key)
     } else if (key === 'sort' && value === DEFAULT_SORT) {
+      params.delete(key) // don't clutter URL with default
+    } else if (key === 'view' && value === 'grid') {
       params.delete(key) // don't clutter URL with default
     } else {
       params.set(key, value)
@@ -135,6 +143,7 @@ export default async function BrowsePage({
   const query = params.q
   const sort = params.sort || DEFAULT_SORT
   const page = Math.max(1, parseInt(params.page || '1', 10))
+  const view = params.view || 'grid'
   const offset = (page - 1) * PER_PAGE
 
   /* ── Fetch categories ── */
@@ -259,6 +268,34 @@ export default async function BrowsePage({
               className="w-full rounded-2xl border border-white/10 bg-white/5 py-4 pl-14 pr-4 text-base text-white placeholder-white/30 backdrop-blur-sm transition-all focus:border-[#FF8A00]/50 focus:outline-none focus:ring-2 focus:ring-[#FF8A00]/20"
             />
           </form>
+        </div>
+
+        {/* ── View Toggle ── */}
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <Link
+              href={u({ view: 'grid', page: undefined })}
+              className={`flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium transition-all ${
+                view === 'grid'
+                  ? 'border-[#FF8A00]/30 bg-[#FF8A00]/10 text-[#FF8A00]'
+                  : 'border-white/10 text-white/60 hover:border-white/20'
+              }`}
+            >
+              <Grid3X3 className="h-4 w-4" />
+              <span>Grid</span>
+            </Link>
+            <Link
+              href={u({ view: 'map', page: undefined })}
+              className={`flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium transition-all ${
+                view === 'map'
+                  ? 'border-[#FF8A00]/30 bg-[#FF8A00]/10 text-[#FF8A00]'
+                  : 'border-white/10 text-white/60 hover:border-white/20'
+              }`}
+            >
+              <Map className="h-4 w-4" />
+              <span>Map</span>
+            </Link>
+          </div>
         </div>
 
         {/* ── Filters Row ── */}
@@ -386,6 +423,49 @@ export default async function BrowsePage({
               Try adjusting your filters
             </p>
           </div>
+        ) : view === 'map' ? (
+          <>
+            <p className="mb-6 text-sm text-white/40">
+              {count} business{count !== 1 ? 'es' : ''} found
+            </p>
+
+            {(() => {
+              const mapItems = (businesses as any[]).filter(
+                (b) => b.latitude != null && b.longitude != null,
+              )
+
+              if (mapItems.length === 0) {
+                return (
+                  <div className="flex flex-col items-center justify-center py-20 text-center rounded-2xl border border-white/10 bg-white/[0.02]">
+                    <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-white/5">
+                      <MapPin className="h-7 w-7 text-white/30" />
+                    </div>
+                    <p className="text-lg font-medium text-white/60">No businesses with map locations</p>
+                    <p className="mt-1 text-sm text-white/40">
+                      The filtered businesses don&apos;t have coordinates yet
+                    </p>
+                  </div>
+                )
+              }
+
+              const avgLat =
+                mapItems.reduce((sum: number, b: any) => sum + Number(b.latitude), 0) /
+                mapItems.length
+              const avgLng =
+                mapItems.reduce((sum: number, b: any) => sum + Number(b.longitude), 0) /
+                mapItems.length
+
+              return (
+                <div className="h-[500px] w-full overflow-hidden rounded-2xl border border-white/10">
+                  <ListingMap
+                    listings={mapItems}
+                    center={[avgLat, avgLng]}
+                    zoom={10}
+                  />
+                </div>
+              )
+            })()}
+          </>
         ) : (
           <>
             <p className="mb-6 text-sm text-white/40">

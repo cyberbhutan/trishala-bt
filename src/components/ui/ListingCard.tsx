@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Badge } from './Badge'
+import SaveButton from './SaveButton'
 import type {
   Business,
   Classified,
@@ -221,6 +222,15 @@ export function ListingCard({
             )}
           </div>
         )}
+
+        {/* ── Heart/Save Button ── */}
+        <div className="absolute right-3 top-3 z-10">
+          <SaveButton
+            itemType={variant}
+            itemId={item.id as number}
+            initialSaved={false}
+          />
+        </div>
 
         {/* ── Badges ── */}
         <div className="absolute left-3 top-3 flex flex-wrap gap-1.5">
