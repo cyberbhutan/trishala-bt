@@ -149,7 +149,7 @@ export default async function BusinessPage({
           <div className="lg:col-span-2 space-y-8">
             {/* Image Gallery */}
             {images.length > 1 && (
-              <div className="flex gap-3 overflow-x-auto pb-2">
+              <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-thin">
                 {images.map((src, i) => (
                   <div
                     key={i}

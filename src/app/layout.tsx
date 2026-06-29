@@ -24,7 +24,7 @@ export default function RootLayout({
     <html lang="en" className="dark">
       <body className="min-h-screen bg-[#0F172A] font-sans antialiased">
         <Navbar />
-        <main className="min-h-screen pt-16">{children}</main>
+        <main className="min-h-screen pt-16 overflow-x-hidden">{children}</main>
         <Footer />
         <Toaster
           position="bottom-center"

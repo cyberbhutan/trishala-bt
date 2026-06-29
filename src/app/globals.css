@@ -140,6 +140,20 @@
     font-feature-settings: "rlig" 1, "calt" 1;
     line-height: 1.6;
     min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Images and media: never overflow their container */
+  img, video, iframe, svg {
+    max-width: 100%;
+    height: auto;
+  }
+
+  /* Text blocks: prevent long words from breaking layout */
+  p, h1, h2, h3, h4, h5, h6, li, td, th {
+    overflow-wrap: break-word;
+    word-wrap: break-word;
+    hyphens: auto;
   }
 
   ::selection {
@@ -192,6 +206,19 @@
 /* Thinner variant for overlays / modals */
 .thin-scrollbar::-webkit-scrollbar {
   width: 3px;
+  height: 3px;
+}
+
+/* Horizontal scroll container for galleries */
+.scrollbar-thin::-webkit-scrollbar {
+  height: 2px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 1px;
 }
 
 /* Firefox scrollbar */

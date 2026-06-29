@@ -311,11 +311,11 @@ export function ListingCard({
       </div>
 
       {/* ═══════ Body ═══════ */}
-      <div className="flex flex-1 flex-col p-4">
+      <div className="flex flex-1 flex-col p-4 min-w-0">
         {/* Title */}
         <h3
           className={cn(
-            'text-sm font-semibold leading-snug text-white transition-colors',
+            'text-sm font-semibold leading-snug text-white transition-colors truncate',
             'group-hover:text-accent-500'
           )}
         >
